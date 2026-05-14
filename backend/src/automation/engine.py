@@ -60,21 +60,42 @@ def run(notify_fn=None) -> dict:
         return {"skipped": "tesla_vehicle_unavailable"}
 
     car_unavailable = False
+    prev_car_plugged = prev_state.get("car_plugged", False)
+    prev_car_level = int(prev_state.get("car_battery_level", 0))
+    prev_car_full = prev_car_level >= int(settings["car_charge_limit_percent"])
     try:
         car = tesla_client.get_vehicle_charge_state(vehicle_id)
     except RuntimeError as e:
         if "asleep" in str(e):
-            # Car is asleep — it's not actively charging, treat as disconnected
-            logger.info("Vehicle asleep — using disconnected state (no wake needed)")
-            car = {
-                "battery_level": prev_state.get("car_battery_level", 0),
-                "charge_limit_soc": settings["car_charge_limit_percent"],
-                "charging_state": "Disconnected",
-                "charge_rate_mph": 0,
-                "charge_power_w": 0,
-                "minutes_to_full_charge": 0,
-                "plugged_in": False,
-            }
+            if prev_car_plugged and not prev_car_full:
+                # Car was plugged in and not full last cycle — wake it so we can charge it
+                logger.info("Vehicle asleep but plugged in and not full — waking to charge")
+                try:
+                    tesla_client._wake_vehicle(vehicle_id, timeout_s=45)
+                    car = tesla_client.get_vehicle_charge_state(vehicle_id)
+                except Exception as wake_e:
+                    logger.warning(f"Wake failed — using prev state as plugged: {wake_e}")
+                    car = {
+                        "battery_level": prev_car_level,
+                        "charge_limit_soc": settings["car_charge_limit_percent"],
+                        "charging_state": "Stopped",
+                        "charge_rate_mph": 0,
+                        "charge_power_w": 0,
+                        "minutes_to_full_charge": 0,
+                        "plugged_in": True,
+                    }
+            else:
+                # Car is away or already full — no need to wake
+                logger.info("Vehicle asleep and disconnected or full — skipping wake")
+                car = {
+                    "battery_level": prev_car_level,
+                    "charge_limit_soc": settings["car_charge_limit_percent"],
+                    "charging_state": "Disconnected",
+                    "charge_rate_mph": 0,
+                    "charge_power_w": 0,
+                    "minutes_to_full_charge": 0,
+                    "plugged_in": False,
+                }
         else:
             raise
     except Exception as e:

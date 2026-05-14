@@ -74,7 +74,7 @@ def _compute(solar_w, load_w, battery_pct, car_battery_level,
     _log.info(f"Solar ETA: irr_now={current_irr:.0f} W/m², factor={panel_factor}")
 
     pw_full_pct = float(settings.get("powerwall_full_threshold", 98))
-    pw_wh = battery_pct / 100 * POWERWALL_KWH * 1000
+    pw_wh = float(battery_pct) / 100 * POWERWALL_KWH * 1000
     pw_target_wh = pw_full_pct / 100 * POWERWALL_KWH * 1000
     pw_already_full = battery_pct >= pw_full_pct
 
