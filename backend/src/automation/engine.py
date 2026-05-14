@@ -340,6 +340,7 @@ def run(notify_fn=None) -> dict:
         solar_power_w=solar_w,
         battery_power_w=battery_power_w,
         load_power_w=load_w,
+        home_load_w=max(0.0, load_w - actual_car_charge_power_w),
         grid_power_w=energy["grid_power_w"],
         battery_percentage=battery_pct,
         car_battery_level=car["battery_level"],

@@ -91,6 +91,7 @@ export interface EnergyReading {
   solar_power_w: number;
   battery_power_w: number;
   load_power_w: number;
+  home_load_w?: number;
   grid_power_w: number;
   battery_percentage: number;
   car_battery_level: number;

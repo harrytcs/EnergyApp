@@ -32,8 +32,9 @@ class EnergyReading:
     timestamp: int          # Unix epoch seconds (partition key)
     solar_power_w: float
     battery_power_w: float  # Tesla convention: negative=charging, positive=discharging
-    load_power_w: float     # home consumption
-    grid_power_w: float     # positive=importing, negative=exporting
+    load_power_w: float      # total load including car (from Tesla Gateway)
+    home_load_w: float       # load_power_w minus car charging — pure house consumption
+    grid_power_w: float      # positive=importing, negative=exporting
     battery_percentage: float
     car_battery_level: int
     car_charging_state: str
