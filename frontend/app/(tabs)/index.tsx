@@ -170,8 +170,9 @@ export default function DashboardScreen() {
           />
           <MetricCard
             label="Home Load"
-            value={r ? (r.load_power_w / 1000).toFixed(1) : '--'}
+            value={r ? (Math.max(0, r.load_power_w - (r.car_charge_power_w ?? 0)) / 1000).toFixed(1) : '--'}
             unit="kW" color={colors.home}
+            subtitle={r?.car_charge_power_w > 0 ? `Car using ${(r.car_charge_power_w / 1000).toFixed(1)} kW` : ''}
           />
           <MetricCard
             label="Tesla"
