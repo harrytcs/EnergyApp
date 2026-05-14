@@ -1,0 +1,293 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Transform: AWS::Serverless-2016-10-31
+Description: EnergyApp - Solar/Powerwall/Car/HVAC automation backend
+
+Globals:
+  Function:
+    Runtime: python3.12
+    Timeout: 60
+    MemorySize: 256
+    Environment:
+      Variables:
+        SNS_TOPIC_ARN: !Ref NotificationTopic
+
+Resources:
+
+  # ── DynamoDB Tables ──────────────────────────────────────────────────────────
+
+  ReadingsTable:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      TableName: energyapp_readings
+      BillingMode: PAY_PER_REQUEST    # free tier: 25 WCU + 25 RCU + 25 GB free
+      AttributeDefinitions:
+        - AttributeName: timestamp
+          AttributeType: N
+      KeySchema:
+        - AttributeName: timestamp
+          KeyType: HASH
+      TimeToLiveSpecification:        # auto-delete readings older than 90 days
+        AttributeName: ttl
+        Enabled: true
+
+  SettingsTable:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      TableName: energyapp_settings
+      BillingMode: PAY_PER_REQUEST
+      AttributeDefinitions:
+        - AttributeName: user_id
+          AttributeType: S
+      KeySchema:
+        - AttributeName: user_id
+          KeyType: HASH
+
+  StateTable:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      TableName: energyapp_state
+      BillingMode: PAY_PER_REQUEST
+      AttributeDefinitions:
+        - AttributeName: state_key
+          AttributeType: S
+      KeySchema:
+        - AttributeName: state_key
+          KeyType: HASH
+
+  # ── SNS Topic for Push Notifications ─────────────────────────────────────────
+
+  NotificationTopic:
+    Type: AWS::SNS::Topic
+    Properties:
+      TopicName: energyapp-notifications
+
+  # ── IAM Role shared by all Lambda functions ────────────────────────────────
+
+  LambdaRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: lambda.amazonaws.com
+            Action: sts:AssumeRole
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole
+      Policies:
+        - PolicyName: energyapp-policy
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  - dynamodb:GetItem
+                  - dynamodb:PutItem
+                  - dynamodb:Query
+                  - dynamodb:Scan
+                Resource:
+                  - !GetAtt ReadingsTable.Arn
+                  - !GetAtt SettingsTable.Arn
+                  - !GetAtt StateTable.Arn
+              - Effect: Allow
+                Action:
+                  - ssm:GetParameter
+                  - ssm:PutParameter
+                Resource:
+                  - !Sub arn:aws:ssm:${AWS::Region}:${AWS::AccountId}:parameter/energyapp/*
+              - Effect: Allow
+                Action:
+                  - sns:Publish
+                Resource: !Ref NotificationTopic
+
+  # ── Lambda: Automation Engine (every 5 minutes) ───────────────────────────
+
+  AutomationFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: energyapp-automation
+      CodeUri: src/
+      Handler: handlers.automation_handler.handler
+      Role: !GetAtt LambdaRole.Arn
+      Timeout: 240       # vehicle wake-up + TVCP proxy handshake can take ~90s
+      Events:
+        Schedule:
+          Type: Schedule
+          Properties:
+            Schedule: rate(5 minutes)
+            Enabled: true
+
+  # ── Lambda: Dashboard API ─────────────────────────────────────────────────
+
+  DashboardFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: energyapp-dashboard
+      CodeUri: src/
+      Handler: handlers.dashboard_handler.handler
+      Role: !GetAtt LambdaRole.Arn
+      Events:
+        Api:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref HttpApi
+            Path: /dashboard
+            Method: GET
+
+  # ── Lambda: History API ────────────────────────────────────────────────────
+
+  HistoryFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: energyapp-history
+      CodeUri: src/
+      Handler: handlers.history_handler.handler
+      Role: !GetAtt LambdaRole.Arn
+      Events:
+        Api:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref HttpApi
+            Path: /history
+            Method: GET
+
+  # ── Lambda: Settings API ───────────────────────────────────────────────────
+
+  SettingsFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: energyapp-settings
+      CodeUri: src/
+      Handler: handlers.settings_handler.handler
+      Role: !GetAtt LambdaRole.Arn
+      Events:
+        GetApi:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref HttpApi
+            Path: /settings
+            Method: GET
+        PutApi:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref HttpApi
+            Path: /settings
+            Method: PUT
+        OverrideApi:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref HttpApi
+            Path: /settings/override
+            Method: POST
+
+  # ── Lambda: Savings API ───────────────────────────────────────────────────
+
+  SavingsFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: energyapp-savings
+      CodeUri: src/
+      Handler: handlers.savings_handler.handler
+      Role: !GetAtt LambdaRole.Arn
+      Timeout: 30
+      Events:
+        Api:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref HttpApi
+            Path: /savings
+            Method: GET
+
+  # ── Lambda: Tesla Public Key (domain verification) ───────────────────────
+
+  PublicKeyFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: energyapp-public-key
+      CodeUri: src/
+      Handler: handlers.public_key_handler.handler
+      Role: !GetAtt LambdaRole.Arn
+      Events:
+        WellKnownApi:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref HttpApi
+            Path: /.well-known/appspecific/com.tesla.3p.public-key.pem
+            Method: GET
+            Auth:
+              Authorizer: NONE
+
+  # ── API Gateway (HTTP API — cheaper than REST API) ────────────────────────
+
+  HttpApi:
+    Type: AWS::Serverless::HttpApi
+    Properties:
+      StageName: $default
+      CorsConfiguration:
+        AllowOrigins:
+          - "*"
+        AllowHeaders:
+          - Content-Type
+          - Authorization
+        AllowMethods:
+          - GET
+          - PUT
+          - POST
+          - OPTIONS
+      Auth:
+        DefaultAuthorizer: CognitoAuth
+        Authorizers:
+          CognitoAuth:
+            IdentitySource: $request.header.Authorization
+            JwtConfiguration:
+              Audience:
+                - !Ref CognitoUserPoolClient
+              Issuer: !Sub https://cognito-idp.${AWS::Region}.amazonaws.com/${CognitoUserPool}
+
+  # ── Cognito User Pool (Auth) ──────────────────────────────────────────────
+
+  CognitoUserPool:
+    Type: AWS::Cognito::UserPool
+    Properties:
+      UserPoolName: energyapp-users
+      AutoVerifiedAttributes:
+        - email
+      Policies:
+        PasswordPolicy:
+          MinimumLength: 8
+          RequireUppercase: true
+          RequireLowercase: true
+          RequireNumbers: true
+
+  CognitoUserPoolClient:
+    Type: AWS::Cognito::UserPoolClient
+    Properties:
+      UserPoolId: !Ref CognitoUserPool
+      ClientName: energyapp-mobile
+      GenerateSecret: false
+      ExplicitAuthFlows:
+        - ALLOW_USER_SRP_AUTH
+        - ALLOW_REFRESH_TOKEN_AUTH
+      TokenValidityUnits:
+        AccessToken: hours
+        RefreshToken: days
+      AccessTokenValidity: 1
+      RefreshTokenValidity: 30
+
+Outputs:
+  ApiUrl:
+    Description: API Gateway base URL — put this in your frontend .env
+    Value: !Sub https://${HttpApi}.execute-api.${AWS::Region}.amazonaws.com/prod
+
+  UserPoolId:
+    Description: Cognito User Pool ID
+    Value: !Ref CognitoUserPool
+
+  UserPoolClientId:
+    Description: Cognito App Client ID
+    Value: !Ref CognitoUserPoolClient
+
+  NotificationTopicArn:
+    Description: SNS Topic ARN for push notification routing
+    Value: !Ref NotificationTopic

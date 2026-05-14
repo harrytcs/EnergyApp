@@ -1,0 +1,51 @@
+# Environment / secrets
+.env
+.env.local
+.env.*.local
+
+# SAM build artifacts and config
+backend/.aws-sam/
+backend/samconfig.toml
+
+# Vendored Lambda layer dependencies (run: pip install -r requirements.txt -t layer/python)
+backend/layer/
+
+# Vendored Python packages installed into src/ for Lambda packaging
+# (run: pip install -r backend/requirements.txt -t backend/src/)
+backend/src/certifi/
+backend/src/certifi-*.dist-info/
+backend/src/charset_normalizer/
+backend/src/charset_normalizer-*.dist-info/
+backend/src/idna/
+backend/src/idna-*.dist-info/
+backend/src/requests/
+backend/src/requests-*.dist-info/
+backend/src/urllib3/
+backend/src/urllib3-*.dist-info/
+backend/src/*.so
+backend/src/requirements.txt
+
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+.pytest_cache/
+
+# Node / Expo
+node_modules/
+.expo/
+dist/
+build/
+*.tsbuildinfo
+
+# Claude Code
+.claude/
+
+# macOS
+.DS_Store
+
+# Logs
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
