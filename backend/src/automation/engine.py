@@ -154,9 +154,12 @@ def run(notify_fn=None) -> dict:
 
         if step == "powerwall":
             # Powerwall charges passively via Tesla Gateway — no API call needed.
-            # If not yet full, consume all remaining surplus so lower-ranked items don't run.
+            # If not yet full, only the actual grid export is available to lower-ranked items.
+            # Grid export means the Powerwall is already taking what it can and the rest is
+            # genuinely going to waste — redirect that to car/HVAC instead of blocking everything.
             if not powerwall_full:
-                surplus_w = 0
+                grid_export_w = max(0, -energy["grid_power_w"])
+                surplus_w = grid_export_w
 
         elif step == "car":
             if car_unavailable:
