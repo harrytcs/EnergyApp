@@ -17,7 +17,7 @@ from typing import Optional
 from clients import tesla_client, nest_client
 from utils.solar_eta import compute_solar_etas
 from models.energy_data import (
-    EnergyReading, save_reading, get_automation_state,
+    EnergyReading, save_reading, get_latest_reading, get_automation_state,
     save_automation_state, get_settings, save_settings,
 )
 
@@ -46,9 +46,30 @@ def run(notify_fn=None) -> dict:
         return {"skipped": "automation_paused"}
 
     # ── 1. Fetch current state ────────────────────────────────────────────────
+    # Tesla API is called every 3rd cycle (every 15 min) to stay within the
+    # $10/month free tier. Light cycles use the last DynamoDB reading for
+    # energy data and prev_state for car state — both free to read.
+    cycle_count = int(prev_state.get("cycle_count", 0))
+    is_full_cycle = (cycle_count % 3 == 0)
+    logger.info(f"Cycle {cycle_count} — {'FULL (Tesla API)' if is_full_cycle else 'LIGHT (cached)'}")
+
     try:
         site_id = tesla_client.get_energy_site_id()
-        energy = tesla_client.get_energy_data(site_id)
+        if is_full_cycle:
+            energy = tesla_client.get_energy_data(site_id)
+        else:
+            latest = get_latest_reading()
+            if latest:
+                energy = {
+                    "solar_power_w": float(latest["solar_power_w"]),
+                    "battery_power_w": float(latest["battery_power_w"]),
+                    "load_power_w": float(latest["load_power_w"]),
+                    "grid_power_w": float(latest["grid_power_w"]),
+                    "battery_percentage": float(latest["battery_percentage"]),
+                    "grid_status": "Active",
+                }
+            else:
+                energy = tesla_client.get_energy_data(site_id)
     except Exception as e:
         logger.error(f"Tesla energy data unavailable — aborting cycle: {e}")
         return {"skipped": "tesla_energy_unavailable"}
@@ -63,53 +84,64 @@ def run(notify_fn=None) -> dict:
     prev_car_plugged = prev_state.get("car_plugged", False)
     prev_car_level = int(prev_state.get("car_battery_level", 0))
     prev_car_full = prev_car_level >= int(settings["car_charge_limit_percent"])
-    try:
-        car = tesla_client.get_vehicle_charge_state(vehicle_id)
-    except RuntimeError as e:
-        if "asleep" in str(e):
-            if prev_car_plugged and not prev_car_full:
-                # Car was plugged in and not full last cycle — wake it so we can charge it
-                logger.info("Vehicle asleep but plugged in and not full — waking to charge")
-                try:
-                    tesla_client._wake_vehicle(vehicle_id, timeout_s=45)
-                    car = tesla_client.get_vehicle_charge_state(vehicle_id)
-                except Exception as wake_e:
-                    logger.warning(f"Wake failed — using prev state as plugged: {wake_e}")
+
+    if not is_full_cycle:
+        # Light cycle — use prev_state for car (no Tesla vehicle API call)
+        car = {
+            "battery_level": prev_car_level,
+            "charge_limit_soc": settings["car_charge_limit_percent"],
+            "charging_state": prev_state.get("car_charging_state", "Disconnected"),
+            "charge_rate_mph": 0,
+            "charge_power_w": float(prev_state.get("car_charge_power_w", 0)),
+            "minutes_to_full_charge": 0,
+            "plugged_in": prev_car_plugged,
+        }
+    else:
+        try:
+            car = tesla_client.get_vehicle_charge_state(vehicle_id)
+        except RuntimeError as e:
+            if "asleep" in str(e):
+                if prev_car_plugged and not prev_car_full:
+                    logger.info("Vehicle asleep but plugged in and not full — waking to charge")
+                    try:
+                        tesla_client._wake_vehicle(vehicle_id, timeout_s=45)
+                        car = tesla_client.get_vehicle_charge_state(vehicle_id)
+                    except Exception as wake_e:
+                        logger.warning(f"Wake failed — using prev state as plugged: {wake_e}")
+                        car = {
+                            "battery_level": prev_car_level,
+                            "charge_limit_soc": settings["car_charge_limit_percent"],
+                            "charging_state": "Stopped",
+                            "charge_rate_mph": 0,
+                            "charge_power_w": 0,
+                            "minutes_to_full_charge": 0,
+                            "plugged_in": True,
+                        }
+                else:
+                    logger.info("Vehicle asleep and disconnected or full — skipping wake")
                     car = {
                         "battery_level": prev_car_level,
                         "charge_limit_soc": settings["car_charge_limit_percent"],
-                        "charging_state": "Stopped",
+                        "charging_state": "Disconnected",
                         "charge_rate_mph": 0,
                         "charge_power_w": 0,
                         "minutes_to_full_charge": 0,
-                        "plugged_in": True,
+                        "plugged_in": False,
                     }
             else:
-                # Car is away or already full — no need to wake
-                logger.info("Vehicle asleep and disconnected or full — skipping wake")
-                car = {
-                    "battery_level": prev_car_level,
-                    "charge_limit_soc": settings["car_charge_limit_percent"],
-                    "charging_state": "Disconnected",
-                    "charge_rate_mph": 0,
-                    "charge_power_w": 0,
-                    "minutes_to_full_charge": 0,
-                    "plugged_in": False,
-                }
-        else:
-            raise
-    except Exception as e:
-        logger.warning(f"Car data unavailable (skipping car actions): {e}")
-        car_unavailable = True
-        car = {
-            "battery_level": prev_state.get("car_battery_level", 0),
-            "charge_limit_soc": settings["car_charge_limit_percent"],
-            "charging_state": prev_state.get("car_charging_state", "Unavailable"),
-            "charge_rate_mph": 0,
-            "charge_power_w": 0,
-            "minutes_to_full_charge": 0,
-            "plugged_in": False,
-        }
+                raise
+        except Exception as e:
+            logger.warning(f"Car data unavailable (skipping car actions): {e}")
+            car_unavailable = True
+            car = {
+                "battery_level": prev_car_level,
+                "charge_limit_soc": settings["car_charge_limit_percent"],
+                "charging_state": prev_state.get("car_charging_state", "Unavailable"),
+                "charge_rate_mph": 0,
+                "charge_power_w": 0,
+                "minutes_to_full_charge": 0,
+                "plugged_in": False,
+            }
 
     hvac_unavailable = False
     try:
@@ -395,6 +427,8 @@ def run(notify_fn=None) -> dict:
         "car_battery_level": car["battery_level"],
         "car_charging_state": car["charging_state"],
         "car_plugged": car["plugged_in"],
+        "car_charge_power_w": car["charge_power_w"],
+        "cycle_count": (cycle_count + 1) % 99,
         "hvac_was_solar_activated": "hvac_on_solar" in actions_taken or prev_state.get("hvac_was_solar_activated", False),
         "powerwall_was_low": is_low,
         "solar_was_low": is_solar_low,
