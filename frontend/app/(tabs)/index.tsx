@@ -28,6 +28,7 @@ function EnergyBackground() {
       source={require('../../assets/bg.jpg')}
       style={fixedStyle}
       resizeMode="cover"
+      imageStyle={Platform.OS === 'web' ? { objectFit: 'cover', objectPosition: 'center 60%' } as any : undefined}
     >
       <View style={[StyleSheet.absoluteFillObject, { backgroundColor: 'rgba(5,10,20,0.68)' }]} />
       <LinearGradient
