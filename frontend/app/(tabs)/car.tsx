@@ -103,8 +103,14 @@ export default function CarScreen() {
   const chargeLimit = settings?.car_charge_limit_percent ?? 90;
   let carETA: string | null = null;
   if (isCharging && chargePowerKw > 0.1) {
-    const remainingKwh = ((chargeLimit - chargeLevel) / 100) * CAR_KWH;
-    carETA = remainingKwh > 0 ? fmtETA(remainingKwh / chargePowerKw) : 'almost done';
+    const solarEta = dashboard?.events?.car_full_eta;
+    if (solarEta) {
+      const timeStr = new Date(solarEta * 1000).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
+      carETA = `Full by ${timeStr} (solar forecast)`;
+    } else {
+      const remainingKwh = ((chargeLimit - chargeLevel) / 100) * CAR_KWH;
+      carETA = remainingKwh > 0 ? fmtETA(remainingKwh / chargePowerKw) : 'almost done';
+    }
   }
 
   const startedAt = fmtTime(dashboard?.events?.car_charge_started_at);
