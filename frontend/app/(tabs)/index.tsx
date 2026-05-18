@@ -9,8 +9,10 @@ import { api, DashboardData, SavingsData } from '../../services/api';
 import MetricCard from '../../components/MetricCard';
 import PowerFlowDiagram from '../../components/PowerFlowDiagram';
 import { colors, spacing, radius } from '../../constants/theme';
+import { fmtETA } from '../../utils/time';
 
 const MONTH_NAMES = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+const CAR_KWH = 75;
 
 function useNextCycleCountdown(lastRunUnix: number | null | undefined): string {
   const [label, setLabel] = useState('');
@@ -180,9 +182,10 @@ export default function DashboardScreen() {
             unit="%" color={colors.car}
             subtitle={r?.car_charging_state ?? ''}
             eta={(() => {
-              const eta = data?.events?.car_full_eta;
-              if (!eta || r?.car_charging_state !== 'Charging') return undefined;
-              return `Full by ${new Date(eta * 1000).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })}`;
+              if (!r || r.car_charging_state !== 'Charging' || (r.car_charge_power_w ?? 0) < 100) return undefined;
+              const chargeLimit = data?.settings?.car_charge_limit_percent ?? 90;
+              const remainingKwh = ((chargeLimit - r.car_battery_level) / 100) * CAR_KWH;
+              return remainingKwh > 0 ? fmtETA(remainingKwh / ((r.car_charge_power_w) / 1000)) : 'Almost done';
             })()}
           />
           {(data?.thermostats ?? []).length > 0
