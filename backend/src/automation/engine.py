@@ -410,9 +410,10 @@ def run(notify_fn=None) -> dict:
         hvac_deactivated_at = now
 
     # ── 11. Compute weather-aware charging ETAs ───────────────────────────────
+    home_load_w = max(0.0, load_w - actual_car_charge_power_w)
     etas = compute_solar_etas(
         solar_w=solar_w,
-        load_w=load_w,
+        load_w=home_load_w,
         battery_pct=battery_pct,
         car_battery_level=car["battery_level"],
         car_plugged_in=car_plugged,
