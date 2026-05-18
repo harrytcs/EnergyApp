@@ -17,19 +17,23 @@ const MONTH_NAMES = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Se
 const CAR_KWH = 75;
 
 function EnergyBackground() {
+  // On web, use position:fixed so the image stays viewport-sized regardless of scroll height.
+  // On native, absoluteFillObject fills the screen correctly already.
+  const fixedStyle: any = Platform.OS === 'web'
+    ? { position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, zIndex: -1 }
+    : StyleSheet.absoluteFillObject;
+
   return (
     <ImageBackground
       source={require('../../assets/bg.jpg')}
-      style={StyleSheet.absoluteFillObject}
+      style={fixedStyle}
       resizeMode="cover"
     >
-      {/* Dark overlay so cards stay readable */}
-      <View style={[StyleSheet.absoluteFillObject, { backgroundColor: 'rgba(5,10,20,0.72)' }]} />
-      {/* Gradient fade to darker at bottom */}
+      <View style={[StyleSheet.absoluteFillObject, { backgroundColor: 'rgba(5,10,20,0.68)' }]} />
       <LinearGradient
-        colors={['transparent', 'rgba(7,16,29,0.6)']}
+        colors={['transparent', 'rgba(7,16,29,0.55)']}
         style={StyleSheet.absoluteFillObject}
-        start={{ x: 0, y: 0.4 }}
+        start={{ x: 0, y: 0.3 }}
         end={{ x: 0, y: 1 }}
         pointerEvents="none"
       />
