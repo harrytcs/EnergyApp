@@ -1,12 +1,11 @@
 import { useEffect, useState, useCallback } from 'react';
 import {
   View, Text, ScrollView, StyleSheet, RefreshControl,
-  ActivityIndicator, Platform, useWindowDimensions,
+  ActivityIndicator, Platform, ImageBackground,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { BarChart } from 'react-native-gifted-charts';
 import { LinearGradient } from 'expo-linear-gradient';
-import Svg, { Circle, Defs, RadialGradient, Stop } from 'react-native-svg';
 import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
 import { api, DashboardData, SavingsData } from '../../services/api';
 import MetricCard from '../../components/MetricCard';
@@ -18,36 +17,23 @@ const MONTH_NAMES = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Se
 const CAR_KWH = 75;
 
 function EnergyBackground() {
-  const { width, height } = useWindowDimensions();
-  const cx = width / 2;
   return (
-    <View style={StyleSheet.absoluteFillObject} pointerEvents="none">
+    <ImageBackground
+      source={require('../../assets/bg.jpg')}
+      style={StyleSheet.absoluteFillObject}
+      resizeMode="cover"
+    >
+      {/* Dark overlay so cards stay readable */}
+      <View style={[StyleSheet.absoluteFillObject, { backgroundColor: 'rgba(5,10,20,0.72)' }]} />
+      {/* Gradient fade to darker at bottom */}
       <LinearGradient
-        colors={['#080e1c', '#0b1628', '#07101d']}
-        start={{ x: 0.2, y: 0 }}
-        end={{ x: 0.8, y: 1 }}
+        colors={['transparent', 'rgba(7,16,29,0.6)']}
         style={StyleSheet.absoluteFillObject}
+        start={{ x: 0, y: 0.4 }}
+        end={{ x: 0, y: 1 }}
+        pointerEvents="none"
       />
-      <Svg width={width} height={height} style={StyleSheet.absoluteFillObject}>
-        <Defs>
-          <RadialGradient id="sg" cx={cx} cy={0} r={width * 0.7} gradientUnits="userSpaceOnUse">
-            <Stop offset="0" stopColor={colors.solar} stopOpacity="0.13" />
-            <Stop offset="1" stopColor={colors.solar} stopOpacity="0" />
-          </RadialGradient>
-          <RadialGradient id="bg" cx={width * 0.88} cy={height * 0.52} r={width * 0.45} gradientUnits="userSpaceOnUse">
-            <Stop offset="0" stopColor={colors.battery} stopOpacity="0.09" />
-            <Stop offset="1" stopColor={colors.battery} stopOpacity="0" />
-          </RadialGradient>
-          <RadialGradient id="cg" cx={width * 0.1} cy={height * 0.75} r={width * 0.35} gradientUnits="userSpaceOnUse">
-            <Stop offset="0" stopColor={colors.car} stopOpacity="0.07" />
-            <Stop offset="1" stopColor={colors.car} stopOpacity="0" />
-          </RadialGradient>
-        </Defs>
-        <Circle cx={cx} cy={0} r={width * 0.7} fill="url(#sg)" />
-        <Circle cx={width * 0.88} cy={height * 0.52} r={width * 0.45} fill="url(#bg)" />
-        <Circle cx={width * 0.1} cy={height * 0.75} r={width * 0.35} fill="url(#cg)" />
-      </Svg>
-    </View>
+    </ImageBackground>
   );
 }
 
