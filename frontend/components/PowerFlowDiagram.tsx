@@ -31,8 +31,13 @@ interface NodeProps {
 
 function Node({ label, value, color, active = true }: NodeProps) {
   return (
-    <View style={[styles.node, { borderColor: active ? color : colors.border, opacity: active ? 1 : 0.35 }]}>
-      <Text style={[styles.nodeLabel, { color: active ? color : colors.textMuted }]}>{label}</Text>
+    <View style={[styles.node, {
+      borderColor: active ? color : colors.border,
+      borderTopColor: active ? color : colors.border,
+      backgroundColor: active ? color + '18' : colors.bgCardAlt,
+      opacity: active ? 1 : 0.4,
+    }]}>
+      <Text style={[styles.nodeLabel, { color: active ? color + 'cc' : colors.textMuted }]}>{label}</Text>
       <Text style={[styles.nodeValue, { color: active ? colors.textPrimary : colors.textMuted }]}>{value}</Text>
     </View>
   );
@@ -139,9 +144,9 @@ const styles = StyleSheet.create({
   middleRow: { flexDirection: 'row', gap: spacing.sm, marginVertical: 2 },
   bottomRow: { flexDirection: 'row', gap: spacing.sm, marginTop: 2, flexWrap: 'wrap', justifyContent: 'center' },
   node: {
-    backgroundColor: colors.bgCardAlt,
     borderRadius: radius.md,
-    borderWidth: 1.5,
+    borderWidth: 1,
+    borderTopWidth: 3,
     paddingHorizontal: spacing.sm,
     paddingVertical: 10,
     alignItems: 'center',
@@ -150,8 +155,8 @@ const styles = StyleSheet.create({
   },
   nodeLabel: { fontSize: 9, fontWeight: '700', letterSpacing: 0.6 },
   nodeValue: { fontSize: 14, fontWeight: '700' },
-  arrowContainer: { alignItems: 'center', height: 22, justifyContent: 'center' },
-  arrowLine: { width: 2, height: 10, borderRadius: 1 },
-  arrowLabel: { fontSize: 10, fontWeight: '600' },
+  arrowContainer: { alignItems: 'center', height: 26, justifyContent: 'center', gap: 2 },
+  arrowLine: { width: 3, height: 12, borderRadius: 2 },
+  arrowLabel: { fontSize: 11, fontWeight: '700' },
   arrowPlaceholder: { height: 22 },
 });
