@@ -183,9 +183,13 @@ export default function DashboardScreen() {
             subtitle={r?.car_charging_state ?? ''}
             eta={(() => {
               if (!r || r.car_charging_state !== 'Charging' || (r.car_charge_power_w ?? 0) < 100) return undefined;
+              const solarEta = data?.events?.car_full_eta;
+              if (solarEta) {
+                return `Full by ${new Date(solarEta * 1000).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })} (solar)`;
+              }
               const chargeLimit = data?.settings?.car_charge_limit_percent ?? 90;
               const remainingKwh = ((chargeLimit - r.car_battery_level) / 100) * CAR_KWH;
-              return remainingKwh > 0 ? fmtETA(remainingKwh / ((r.car_charge_power_w) / 1000)) : 'Almost done';
+              return remainingKwh > 0 ? fmtETA(remainingKwh / (r.car_charge_power_w / 1000)) : 'Almost done';
             })()}
           />
           {(data?.thermostats ?? []).length > 0
