@@ -1,10 +1,13 @@
 import { useEffect, useState, useCallback } from 'react';
 import {
   View, Text, ScrollView, StyleSheet, RefreshControl,
-  ActivityIndicator, Platform,
+  ActivityIndicator, Platform, useWindowDimensions,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { BarChart } from 'react-native-gifted-charts';
+import { LinearGradient } from 'expo-linear-gradient';
+import Svg, { Circle, Defs, RadialGradient, Stop } from 'react-native-svg';
+import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
 import { api, DashboardData, SavingsData } from '../../services/api';
 import MetricCard from '../../components/MetricCard';
 import PowerFlowDiagram from '../../components/PowerFlowDiagram';
@@ -13,6 +16,40 @@ import { fmtETA } from '../../utils/time';
 
 const MONTH_NAMES = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
 const CAR_KWH = 75;
+
+function EnergyBackground() {
+  const { width, height } = useWindowDimensions();
+  const cx = width / 2;
+  return (
+    <View style={StyleSheet.absoluteFillObject} pointerEvents="none">
+      <LinearGradient
+        colors={['#080e1c', '#0b1628', '#07101d']}
+        start={{ x: 0.2, y: 0 }}
+        end={{ x: 0.8, y: 1 }}
+        style={StyleSheet.absoluteFillObject}
+      />
+      <Svg width={width} height={height} style={StyleSheet.absoluteFillObject}>
+        <Defs>
+          <RadialGradient id="sg" cx={cx} cy={0} r={width * 0.7} gradientUnits="userSpaceOnUse">
+            <Stop offset="0" stopColor={colors.solar} stopOpacity="0.13" />
+            <Stop offset="1" stopColor={colors.solar} stopOpacity="0" />
+          </RadialGradient>
+          <RadialGradient id="bg" cx={width * 0.88} cy={height * 0.52} r={width * 0.45} gradientUnits="userSpaceOnUse">
+            <Stop offset="0" stopColor={colors.battery} stopOpacity="0.09" />
+            <Stop offset="1" stopColor={colors.battery} stopOpacity="0" />
+          </RadialGradient>
+          <RadialGradient id="cg" cx={width * 0.1} cy={height * 0.75} r={width * 0.35} gradientUnits="userSpaceOnUse">
+            <Stop offset="0" stopColor={colors.car} stopOpacity="0.07" />
+            <Stop offset="1" stopColor={colors.car} stopOpacity="0" />
+          </RadialGradient>
+        </Defs>
+        <Circle cx={cx} cy={0} r={width * 0.7} fill="url(#sg)" />
+        <Circle cx={width * 0.88} cy={height * 0.52} r={width * 0.45} fill="url(#bg)" />
+        <Circle cx={width * 0.1} cy={height * 0.75} r={width * 0.35} fill="url(#cg)" />
+      </Svg>
+    </View>
+  );
+}
 
 function useNextCycleCountdown(lastRunUnix: number | null | undefined): string {
   const [label, setLabel] = useState('');
@@ -75,9 +112,12 @@ export default function DashboardScreen() {
 
   if (loading) {
     return (
-      <SafeAreaView style={styles.container}>
-        <ActivityIndicator size="large" color={colors.solar} style={{ flex: 1 }} />
-      </SafeAreaView>
+      <View style={styles.container}>
+        <EnergyBackground />
+        <SafeAreaView style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}>
+          <ActivityIndicator size="large" color={colors.solar} />
+        </SafeAreaView>
+      </View>
     );
   }
 
@@ -102,7 +142,9 @@ export default function DashboardScreen() {
   }));
 
   return (
-    <SafeAreaView style={styles.container}>
+    <View style={styles.container}>
+      <EnergyBackground />
+      <SafeAreaView style={{ flex: 1 }}>
       <ScrollView
         contentContainerStyle={[
           styles.scroll,
@@ -158,6 +200,7 @@ export default function DashboardScreen() {
             value={r ? (r.solar_power_w / 1000).toFixed(1) : '--'}
             unit="kW" color={colors.solar}
             subtitle={s ? `${s.solar_kwh.toFixed(1)} kWh generated` : ''}
+            icon={<Ionicons name="sunny" size={18} color={colors.solar} />}
           />
           <MetricCard
             label="Powerwall"
@@ -169,12 +212,14 @@ export default function DashboardScreen() {
               if (!eta || !r || r.battery_power_w >= -50) return undefined;
               return `Full by ${new Date(eta * 1000).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })}`;
             })()}
+            icon={<MaterialCommunityIcons name="battery-charging-80" size={18} color={colors.battery} />}
           />
           <MetricCard
             label="Home Load"
             value={r ? ((r.home_load_w ?? Math.max(0, r.load_power_w - (r.car_charge_power_w ?? 0))) / 1000).toFixed(1) : '--'}
             unit="kW" color={colors.home}
             subtitle={r?.car_charge_power_w > 0 ? `Car using ${(r.car_charge_power_w / 1000).toFixed(1)} kW` : ''}
+            icon={<Ionicons name="home" size={18} color={colors.home} />}
           />
           <MetricCard
             label="Tesla"
@@ -191,6 +236,7 @@ export default function DashboardScreen() {
               const remainingKwh = ((chargeLimit - r.car_battery_level) / 100) * CAR_KWH;
               return remainingKwh > 0 ? fmtETA(remainingKwh / (r.car_charge_power_w / 1000)) : 'Almost done';
             })()}
+            icon={<MaterialCommunityIcons name="car-electric" size={18} color={colors.car} />}
           />
           {(data?.thermostats ?? []).length > 0
             ? (data?.thermostats ?? []).map((t, i) => (
@@ -203,6 +249,7 @@ export default function DashboardScreen() {
                   subtitle={t.mode !== 'OFF'
                     ? `Set ${t.cool_setpoint_f.toFixed(0)}°F · ${t.hvac_status === 'COOLING' ? 'Cooling' : t.hvac_status === 'HEATING' ? 'Heating' : 'Standby'}`
                     : `Set ${t.cool_setpoint_f.toFixed(0)}°F · Off`}
+                  icon={<MaterialCommunityIcons name="air-conditioner" size={18} color={colors.hvac} />}
                 />
               ))
             : (
@@ -211,6 +258,7 @@ export default function DashboardScreen() {
                   value={r ? `${r.hvac_current_temp_f.toFixed(0)}` : '--'}
                   unit="°F" color={colors.hvac}
                   subtitle={r?.hvac_status ?? ''}
+                  icon={<MaterialCommunityIcons name="air-conditioner" size={18} color={colors.hvac} />}
                 />
               )
           }
@@ -299,12 +347,13 @@ export default function DashboardScreen() {
           )}
         </View>
       </ScrollView>
-    </SafeAreaView>
+      </SafeAreaView>
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: colors.bg },
+  container: { flex: 1 },
   scroll: { padding: spacing.md, gap: spacing.md },
   header: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
   title: { color: colors.textPrimary, fontSize: 26, fontWeight: '800', letterSpacing: -0.5 },

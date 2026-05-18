@@ -8,16 +8,20 @@ interface Props {
   color?: string;
   subtitle?: string;
   eta?: string;
+  icon?: React.ReactNode;
 }
 
-export default function MetricCard({ label, value, unit, color = colors.solar, subtitle, eta }: Props) {
+export default function MetricCard({ label, value, unit, color = colors.solar, subtitle, eta, icon }: Props) {
   return (
     <View style={[styles.card, {
       backgroundColor: color + '14',
       borderColor: color + '30',
       borderTopColor: color,
     }]}>
-      <Text style={[styles.label, { color: color + 'cc' }]}>{label.toUpperCase()}</Text>
+      <View style={styles.headerRow}>
+        <Text style={[styles.label, { color: color + 'cc' }]}>{label.toUpperCase()}</Text>
+        {icon && <View style={styles.iconWrap}>{icon}</View>}
+      </View>
       <View style={styles.valueRow}>
         <Text style={[styles.value, { color }]}>{value}</Text>
         {unit ? <Text style={[styles.unit, { color }]}>{unit}</Text> : null}
@@ -38,6 +42,12 @@ const styles = StyleSheet.create({
     minWidth: 110,
     gap: 6,
   },
+  headerRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+  },
+  iconWrap: { opacity: 0.75 },
   label: {
     fontSize: 10,
     fontWeight: '700',

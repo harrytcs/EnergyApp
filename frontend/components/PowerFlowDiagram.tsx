@@ -1,4 +1,6 @@
 import { View, Text, StyleSheet } from 'react-native';
+import { LinearGradient } from 'expo-linear-gradient';
+import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
 import { colors, spacing, radius } from '../constants/theme';
 
 interface ThermostatState {
@@ -27,16 +29,18 @@ interface NodeProps {
   value: string;
   color: string;
   active?: boolean;
+  icon?: React.ReactNode;
 }
 
-function Node({ label, value, color, active = true }: NodeProps) {
+function Node({ label, value, color, active = true, icon }: NodeProps) {
   return (
     <View style={[styles.node, {
-      borderColor: active ? color : colors.border,
+      borderColor: active ? color + '55' : colors.border,
       borderTopColor: active ? color : colors.border,
       backgroundColor: active ? color + '18' : colors.bgCardAlt,
       opacity: active ? 1 : 0.4,
     }]}>
+      {icon && <View style={{ marginBottom: 1 }}>{icon}</View>}
       <Text style={[styles.nodeLabel, { color: active ? color + 'cc' : colors.textMuted }]}>{label}</Text>
       <Text style={[styles.nodeValue, { color: active ? colors.textPrimary : colors.textMuted }]}>{value}</Text>
     </View>
@@ -62,11 +66,22 @@ export default function PowerFlowDiagram({ solarW, batteryW, loadW, gridW, batte
   const t2 = thermostats[1];
 
   return (
-    <View style={styles.container}>
+    <LinearGradient
+      colors={[colors.bgCardAlt, colors.bgCard]}
+      start={{ x: 0, y: 0 }}
+      end={{ x: 1, y: 1 }}
+      style={styles.container}
+    >
       <Text style={styles.title}>LIVE POWER FLOW</Text>
 
       <View style={styles.topRow}>
-        <Node label="SOLAR" value={wToKw(solarW)} color={colors.solar} active={solarW > 50} />
+        <Node
+          label="SOLAR"
+          value={wToKw(solarW)}
+          color={colors.solar}
+          active={solarW > 50}
+          icon={<Ionicons name="sunny" size={20} color={colors.solar} />}
+        />
       </View>
 
       <FlowArrow watts={solarW} color={colors.solar} />
@@ -77,13 +92,20 @@ export default function PowerFlowDiagram({ solarW, batteryW, loadW, gridW, batte
           value={wToKw(gridW)}
           color={gridImport > 0 ? colors.grid : colors.gridExport}
           active={Math.abs(gridW) > 50}
+          icon={<MaterialCommunityIcons name="transmission-tower" size={18} color={gridImport > 0 ? colors.grid : colors.gridExport} />}
         />
-        <Node label="HOME" value={wToKw(loadW)} color={colors.home} />
+        <Node
+          label="HOME"
+          value={wToKw(loadW)}
+          color={colors.home}
+          icon={<Ionicons name="home" size={18} color={colors.home} />}
+        />
         <Node
           label={`BATTERY ${batteryPct.toFixed(0)}%`}
           value={batteryCharging > 0 ? `+${wToKw(batteryCharging)}` : batteryDischarging > 0 ? `-${wToKw(batteryDischarging)}` : 'Idle'}
           color={colors.battery}
           active={Math.abs(batteryW) > 50}
+          icon={<MaterialCommunityIcons name="battery-charging-80" size={18} color={colors.battery} />}
         />
       </View>
 
@@ -93,6 +115,7 @@ export default function PowerFlowDiagram({ solarW, batteryW, loadW, gridW, batte
           value={carChargeW > 0 ? wToKw(carChargeW) : 'Idle'}
           color={colors.car}
           active={carChargeW > 0}
+          icon={<MaterialCommunityIcons name="car-electric" size={18} color={colors.car} />}
         />
         {t1 && (
           <Node
@@ -100,6 +123,7 @@ export default function PowerFlowDiagram({ solarW, batteryW, loadW, gridW, batte
             value={t1.hvac_status === 'OFF' ? 'Off' : t1.hvac_status}
             color={colors.hvac}
             active={t1.hvac_status !== 'OFF'}
+            icon={<MaterialCommunityIcons name="air-conditioner" size={18} color={colors.hvac} />}
           />
         )}
         {t2 && (
@@ -108,6 +132,7 @@ export default function PowerFlowDiagram({ solarW, batteryW, loadW, gridW, batte
             value={t2.hvac_status === 'OFF' ? 'Off' : t2.hvac_status}
             color={colors.hvac}
             active={t2.hvac_status !== 'OFF'}
+            icon={<MaterialCommunityIcons name="air-conditioner" size={18} color={colors.hvac} />}
           />
         )}
         {!t1 && !t2 && (
@@ -116,16 +141,16 @@ export default function PowerFlowDiagram({ solarW, batteryW, loadW, gridW, batte
             value="Off"
             color={colors.hvac}
             active={false}
+            icon={<MaterialCommunityIcons name="air-conditioner" size={18} color={colors.hvac} />}
           />
         )}
       </View>
-    </View>
+    </LinearGradient>
   );
 }
 
 const styles = StyleSheet.create({
   container: {
-    backgroundColor: colors.bgCard,
     borderRadius: radius.lg,
     padding: spacing.md,
     borderWidth: 1,
@@ -158,5 +183,5 @@ const styles = StyleSheet.create({
   arrowContainer: { alignItems: 'center', height: 26, justifyContent: 'center', gap: 2 },
   arrowLine: { width: 3, height: 12, borderRadius: 2 },
   arrowLabel: { fontSize: 11, fontWeight: '700' },
-  arrowPlaceholder: { height: 22 },
+  arrowPlaceholder: { height: 26 },
 });
